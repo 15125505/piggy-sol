@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IERC20.sol";
 
 // Permit2 interface definition
 interface IPermit2 {
@@ -99,6 +99,7 @@ contract Piggy {
             block.timestamp >= bank.createdAt + bank.lockPeriod
         ) {
             bank.createdAt = block.timestamp;
+            bank.lockPeriod = lockPeriod;
         }
         // Permit2 transfer WLD
         permit2.permitTransferFrom(
