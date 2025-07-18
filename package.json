@@ -5,7 +5,7 @@
     "scripts": {
         "test": "hardhat test",
         "build": "hardhat compile",
-        "deploy": "hardhat run scripts/deploy.ts --network worldchainMainnet",
+        "deploy": "hardhat run scripts/deploy.ts --network sepolia",
         "format": "prettier --write .",
         "node": "hardhat node"
     },
