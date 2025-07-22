@@ -113,21 +113,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         emit Unpaused(msg.sender);
     }
 
-    /// @notice Query the balance of a specific token in user's piggy bank
-    function getBalance(
-        address user,
-        address token
-    ) external view returns (uint256) {
-        return piggyBanks[user].balances[token];
-    }
-
-    /// @notice Query all tokens that user has deposited
-    function getUserTokens(
-        address user
-    ) external view returns (address[] memory) {
-        return userTokens[user];
-    }
-
     /// @notice Query the unlock timestamp of a user's piggy bank
     /// @param user The user's address
     /// @return The unlock timestamp (in seconds)
@@ -135,13 +120,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         PiggyBank storage bank = piggyBanks[user];
         require(bank.exists, "Piggy bank does not exist");
         return bank.createdAt + bank.lockPeriod;
-    }
-
-    /// @notice Check if user's piggy bank is unlocked
-    function isUnlocked(address user) external view returns (bool) {
-        PiggyBank storage bank = piggyBanks[user];
-        if (!bank.exists) return false;
-        return block.timestamp >= bank.createdAt + bank.lockPeriod;
     }
 
     /// @notice Deposit ERC20 tokens (first deposit automatically creates a piggy bank, uses Permit2 to transfer tokens)
