@@ -269,7 +269,7 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     /// @param user 用户地址
     /// @return tokens 代币地址数组
     /// @return balances 对应的余额数组
-    function getAllBalances(
+    function getBalances(
         address user
     )
         external
