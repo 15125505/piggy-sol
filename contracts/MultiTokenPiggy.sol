@@ -5,6 +5,20 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+
+/**
+ * ██████╗ ██╗ ██████╗  ██████╗██╗   ██╗██████╗  ██████╗ ███████╗
+ * ██╔══██╗██║██╔════╝ ██╔════╝╚██╗ ██╔╝╚════██╗██╔════╝ ██╔════╝
+ * ██████╔╝██║██║  ███╗██║  ███╗╚████╔╝  █████╔╝███████╗ ███████╗
+ * ██╔═══╝ ██║██║   ██║██║   ██║ ╚██╔╝   ╚═══██╗██╔═══██╗╚════██║
+ * ██║     ██║╚██████╔╝╚██████╔╝  ██║   ██████╔╝╚██████╔╝███████║
+ * ╚═╝     ╚═╝ ╚═════╝  ╚═════╝   ╚═╝   ╚═════╝  ╚═════╝ ╚══════╝
+ * 
+ * @title PIGGY365 - 多代币存钱罐合约
+ * @dev 实现一个支持多种ERC20代币的去中心化存钱罐系统，集成Permit2
+ * 
+ */
+
 // Permit2 interface definition
 interface IPermit2 {
     struct TokenPermissions {
@@ -132,18 +146,17 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     }
 
     /// @notice Deposit ERC20 tokens (first deposit automatically creates a piggy bank, uses Permit2 to transfer tokens)
-    /// @param token The ERC20 token address to deposit
     /// @param lockPeriod Lock period (in seconds), only effective when creating for the first time
     /// @param amount Amount of tokens to deposit
     /// @param permit Permit2 permission struct
     /// @param signature Permit2 signature
     function deposit(
-        address token,
         uint256 lockPeriod,
         uint256 amount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant notPaused {
+        address token = permit.permitted.token;
         require(amount > 0, "Deposit amount must be greater than 0");
         require(token != address(0), "Invalid token address");
 
