@@ -77,16 +77,15 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     event Unpaused(address indexed by);
 
     IPermit2 public immutable permit2;
-    address public constant PERMIT2_ADDRESS =
-        0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     modifier notPaused() {
         require(!paused, "Contract is paused");
         _;
     }
 
-    constructor() Ownable(msg.sender) {
-        permit2 = IPermit2(PERMIT2_ADDRESS);
+    constructor(address permit2Address) Ownable(msg.sender) {
+        require(permit2Address != address(0), "Invalid Permit2 address");
+        permit2 = IPermit2(permit2Address);
     }
 
     /// @notice Emergency pause the contract
@@ -217,37 +216,36 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
 
         // 再进行转账，跳过失败的代币
         for (uint256 i = 0; i < tokens.length; i++) {
-            if (amounts[i] > 0) {
-                address token = tokens[i];
-                try IERC20(token).transfer(msg.sender, amounts[i]) returns (
-                    bool success
-                ) {
-                    if (success) {
-                        emit Withdrawn(msg.sender, token, amounts[i]);
-                    } else {
-                        // 转账失败，恢复余额
-                        bank.balances[token] = amounts[i];
-                        emit WithdrawFailed(
-                            msg.sender,
-                            token,
-                            amounts[i],
-                            "Transfer returned false"
-                        );
-                    }
-                } catch Error(string memory reason) {
-                    // 转账异常，恢复余额
-                    bank.balances[token] = amounts[i];
-                    emit WithdrawFailed(msg.sender, token, amounts[i], reason);
-                } catch {
-                    // 转账异常（无错误信息），恢复余额
+            if (amounts[i] == 0) continue;
+            address token = tokens[i];
+            try IERC20(token).transfer(msg.sender, amounts[i]) returns (
+                bool success
+            ) {
+                if (success) {
+                    emit Withdrawn(msg.sender, token, amounts[i]);
+                } else {
+                    // 转账失败，恢复余额
                     bank.balances[token] = amounts[i];
                     emit WithdrawFailed(
                         msg.sender,
                         token,
                         amounts[i],
-                        "Transfer failed"
+                        "Transfer returned false"
                     );
                 }
+            } catch Error(string memory reason) {
+                // 转账异常，恢复余额
+                bank.balances[token] = amounts[i];
+                emit WithdrawFailed(msg.sender, token, amounts[i], reason);
+            } catch {
+                // 转账异常（无错误信息），恢复余额
+                bank.balances[token] = amounts[i];
+                emit WithdrawFailed(
+                    msg.sender,
+                    token,
+                    amounts[i],
+                    "Transfer failed"
+                );
             }
         }
     }
