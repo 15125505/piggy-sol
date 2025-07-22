@@ -59,7 +59,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
 
     /// @dev Track user's tokens for enumeration
     mapping(address => address[]) public userTokens;
-    mapping(address => mapping(address => bool)) public userHasToken;
 
     /// @dev Emergency pause state
     bool public paused = false;
@@ -189,9 +188,8 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         }
 
         // Add token to user's token list if first time depositing this token
-        if (!userHasToken[msg.sender][token]) {
+        if (bank.balances[token] == 0) {
             userTokens[msg.sender].push(token);
-            userHasToken[msg.sender][token] = true;
         }
 
         // Permit2 transfer tokens
@@ -269,10 +267,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     function removeToken(address token) external nonReentrant notPaused {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
-        require(
-            userHasToken[msg.sender][token],
-            "Token not found in piggy bank"
-        );
 
         uint256 amount = bank.balances[token];
         require(amount > 0, "No balance for this token");
@@ -289,7 +283,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
                 break;
             }
         }
-        userHasToken[msg.sender][token] = false;
 
         emit TokenRemoved(msg.sender, token, amount);
     }
