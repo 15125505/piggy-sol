@@ -138,6 +138,7 @@ contract MultiTokenPiggy {
         ) {
             bank.createdAt = block.timestamp;
             bank.lockPeriod = lockPeriod;
+            emit PiggyBankCreated(msg.sender, block.timestamp);
         }
 
         // Add token to user's token list if first time depositing this token
@@ -161,29 +162,8 @@ contract MultiTokenPiggy {
         emit Deposited(msg.sender, token, amount, bank.balances[token]);
     }
 
-    /// @notice Withdraw specific token (can only withdraw after the lock period)
-    /// @param token The token address to withdraw
-    function withdraw(address token) external {
-        PiggyBank storage bank = piggyBanks[msg.sender];
-        require(bank.exists, "Please create a piggy bank first");
-        require(
-            block.timestamp >= bank.createdAt + bank.lockPeriod,
-            "Not yet unlocked"
-        );
-
-        uint256 amount = bank.balances[token];
-        require(amount > 0, "No balance to withdraw for this token");
-
-        bank.balances[token] = 0;
-
-        IERC20 tokenContract = IERC20(token);
-        require(tokenContract.transfer(msg.sender, amount), "Transfer failed");
-
-        emit Withdrawn(msg.sender, token, amount);
-    }
-
     /// @notice Withdraw all tokens (can only withdraw after the lock period)
-    function withdrawAll() external {
+    function withdraw() external {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
         require(
@@ -207,24 +187,4 @@ contract MultiTokenPiggy {
         }
     }
 
-    /// @notice Get total number of different tokens user has deposited
-    function getUserTokenCount(address user) external view returns (uint256) {
-        return userTokens[user].length;
-    }
-
-    /// @notice Check if user can withdraw (lock period expired and has balance)
-    function canWithdraw(address user) external view returns (bool) {
-        PiggyBank storage bank = piggyBanks[user];
-        if (!bank.exists) return false;
-        if (block.timestamp < bank.createdAt + bank.lockPeriod) return false;
-
-        // Check if user has any token balance > 0
-        address[] memory tokens = userTokens[user];
-        for (uint256 i = 0; i < tokens.length; i++) {
-            if (bank.balances[tokens[i]] > 0) {
-                return true;
-            }
-        }
-        return false;
-    }
 }
