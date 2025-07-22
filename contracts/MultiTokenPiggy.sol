@@ -1,16 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-interface IERC20 {
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 value) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function approve(address spender, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Permit2 interface definition
 interface IPermit2 {
@@ -49,29 +40,44 @@ contract MultiTokenPiggy {
 
     /// @dev Mapping to record each user's piggy bank
     mapping(address => PiggyBank) public piggyBanks;
-    
+
     /// @dev Track user's tokens for enumeration
     mapping(address => address[]) public userTokens;
     mapping(address => mapping(address => bool)) public userHasToken;
 
     event PiggyBankCreated(address indexed user, uint256 createdAt);
-    event Deposited(address indexed user, address indexed token, uint256 amount, uint256 newBalance);
-    event Withdrawn(address indexed user, address indexed token, uint256 amount);
+    event Deposited(
+        address indexed user,
+        address indexed token,
+        uint256 amount,
+        uint256 newBalance
+    );
+    event Withdrawn(
+        address indexed user,
+        address indexed token,
+        uint256 amount
+    );
 
     IPermit2 public immutable permit2;
-    address public constant PERMIT2_ADDRESS = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public constant PERMIT2_ADDRESS =
+        0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     constructor() {
         permit2 = IPermit2(PERMIT2_ADDRESS);
     }
 
     /// @notice Query the balance of a specific token in user's piggy bank
-    function getBalance(address user, address token) external view returns (uint256) {
+    function getBalance(
+        address user,
+        address token
+    ) external view returns (uint256) {
         return piggyBanks[user].balances[token];
     }
 
     /// @notice Query all tokens that user has deposited
-    function getUserTokens(address user) external view returns (address[] memory) {
+    function getUserTokens(
+        address user
+    ) external view returns (address[] memory) {
         return userTokens[user];
     }
 
@@ -106,9 +112,9 @@ contract MultiTokenPiggy {
     ) external {
         require(amount > 0, "Deposit amount must be greater than 0");
         require(token != address(0), "Invalid token address");
-        
+
         PiggyBank storage bank = piggyBanks[msg.sender];
-        
+
         if (!bank.exists) {
             require(lockPeriod > 0, "Lock period must be greater than 0");
             bank.createdAt = block.timestamp;
@@ -116,7 +122,7 @@ contract MultiTokenPiggy {
             bank.lockPeriod = lockPeriod;
             emit PiggyBankCreated(msg.sender, block.timestamp);
         }
-        
+
         // Check if all token balances are 0 and lock period has expired, reset creation time
         bool allBalancesZero = true;
         for (uint256 i = 0; i < userTokens[msg.sender].length; i++) {
@@ -125,8 +131,11 @@ contract MultiTokenPiggy {
                 break;
             }
         }
-        
-        if (allBalancesZero && block.timestamp >= bank.createdAt + bank.lockPeriod) {
+
+        if (
+            allBalancesZero &&
+            block.timestamp >= bank.createdAt + bank.lockPeriod
+        ) {
             bank.createdAt = block.timestamp;
             bank.lockPeriod = lockPeriod;
         }
@@ -157,16 +166,19 @@ contract MultiTokenPiggy {
     function withdraw(address token) external {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
-        require(block.timestamp >= bank.createdAt + bank.lockPeriod, "Not yet unlocked");
-        
+        require(
+            block.timestamp >= bank.createdAt + bank.lockPeriod,
+            "Not yet unlocked"
+        );
+
         uint256 amount = bank.balances[token];
         require(amount > 0, "No balance to withdraw for this token");
-        
+
         bank.balances[token] = 0;
-        
+
         IERC20 tokenContract = IERC20(token);
         require(tokenContract.transfer(msg.sender, amount), "Transfer failed");
-        
+
         emit Withdrawn(msg.sender, token, amount);
     }
 
@@ -174,8 +186,11 @@ contract MultiTokenPiggy {
     function withdrawAll() external {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
-        require(block.timestamp >= bank.createdAt + bank.lockPeriod, "Not yet unlocked");
-        
+        require(
+            block.timestamp >= bank.createdAt + bank.lockPeriod,
+            "Not yet unlocked"
+        );
+
         address[] memory tokens = userTokens[msg.sender];
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
@@ -183,7 +198,10 @@ contract MultiTokenPiggy {
             if (amount > 0) {
                 bank.balances[token] = 0;
                 IERC20 tokenContract = IERC20(token);
-                require(tokenContract.transfer(msg.sender, amount), "Transfer failed");
+                require(
+                    tokenContract.transfer(msg.sender, amount),
+                    "Transfer failed"
+                );
                 emit Withdrawn(msg.sender, token, amount);
             }
         }
@@ -199,7 +217,7 @@ contract MultiTokenPiggy {
         PiggyBank storage bank = piggyBanks[user];
         if (!bank.exists) return false;
         if (block.timestamp < bank.createdAt + bank.lockPeriod) return false;
-        
+
         // Check if user has any token balance > 0
         address[] memory tokens = userTokens[user];
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -209,4 +227,4 @@ contract MultiTokenPiggy {
         }
         return false;
     }
-} 
+}
