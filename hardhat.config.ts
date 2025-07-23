@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "solidity-coverage";
 
 const config: HardhatUserConfig = {
     solidity: {
@@ -57,6 +58,10 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: process.env.ETHERSCAN_API_KEY, // Etherscan API Key
     },
+    // 覆盖率配置（可选）
+    solcover: {
+        skipFiles: ['test/', 'mock/']  // 跳过测试文件
+    }
 };
 
 export default config;
