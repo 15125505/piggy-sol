@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-
 /**
  * ██████╗ ██╗ ██████╗  ██████╗██╗   ██╗██████╗  ██████╗ ███████╗
  * ██╔══██╗██║██╔════╝ ██╔════╝╚██╗ ██╔╝╚════██╗██╔════╝ ██╔════╝
@@ -14,8 +13,8 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * ██║     ██║╚██████╔╝╚██████╔╝  ██║   ██████╔╝╚██████╔╝███████║
  * ╚═╝     ╚═╝ ╚═════╝  ╚═════╝   ╚═╝   ╚═════╝  ╚═════╝ ╚══════╝
  * 
- * @title PIGGY365 - 多代币存钱罐合约
- * @dev 实现一个支持多种ERC20代币的去中心化存钱罐系统，集成Permit2
+ * @title PIGGY365 - Multi-token Piggy Bank Contract
+ * @dev Implements a decentralized piggy bank system supporting multiple ERC20 tokens, integrated with Permit2
  * 
  */
 
@@ -173,14 +172,14 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
 
         address[] memory tokens = userTokens[msg.sender];
 
-        // 先更新所有状态，防止重入攻击
+        // Update all states first to prevent reentrancy attacks
         uint256[] memory amounts = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
             amounts[i] = bank.balances[tokens[i]];
             bank.balances[tokens[i]] = 0;
         }
 
-        // 再进行转账，跳过失败的代币
+        // Then perform transfers, skipping failed tokens
         for (uint256 i = 0; i < tokens.length; i++) {
             if (amounts[i] == 0) continue;
             address token = tokens[i];
@@ -190,7 +189,7 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
                 if (success) {
                     emit Withdrawn(msg.sender, token, amounts[i]);
                 } else {
-                    // 转账失败，恢复余额
+                    // If transfer fails, restore balance
                     bank.balances[token] = amounts[i];
                     emit WithdrawFailed(
                         msg.sender,
@@ -200,11 +199,11 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
                     );
                 }
             } catch Error(string memory reason) {
-                // 转账异常，恢复余额
+                // If transfer throws an error, restore balance
                 bank.balances[token] = amounts[i];
                 emit WithdrawFailed(msg.sender, token, amounts[i], reason);
             } catch {
-                // 转账异常（无错误信息），恢复余额
+                // If transfer throws an error (no error message), restore balance
                 bank.balances[token] = amounts[i];
                 emit WithdrawFailed(
                     msg.sender,
@@ -226,10 +225,10 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         uint256 amount = bank.balances[token];
         require(amount > 0, "No balance for this token");
 
-        // 清除余额
+        // Clear balance
         bank.balances[token] = 0;
 
-        // 从用户代币列表中移除
+        // Remove from user's token list
         address[] storage tokens = userTokens[msg.sender];
         for (uint256 i = 0; i < tokens.length; i++) {
             if (tokens[i] == token) {
@@ -242,10 +241,10 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         emit TokenRemoved(msg.sender, token, amount);
     }
 
-    /// @notice 获取用户所有代币的余额信息
-    /// @param user 用户地址
-    /// @return tokens 代币地址数组
-    /// @return balances 对应的余额数组
+    /// @notice Get the balance information of all tokens for a user
+    /// @param user User address
+    /// @return tokens Array of token addresses
+    /// @return balances Corresponding array of balances
     function getBalances(
         address user
     )

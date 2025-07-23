@@ -12,7 +12,6 @@ async function main() {
     const piggy = await MultiTokenPiggy.deploy();
     await piggy.waitForDeployment();
     console.log("MultiTokenPiggy合约地址:", await piggy.getAddress());
-    console.log("Permit2地址已硬编码为:", "0x000000000022D473030F116dDEE9F6B43aC78BA3");
 }
 
 main().catch((error) => {
