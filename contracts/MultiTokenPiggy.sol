@@ -60,9 +60,6 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     /// @dev Track user's tokens for enumeration
     mapping(address => address[]) public userTokens;
 
-    /// @dev Emergency pause state
-    bool public paused = false;
-
     event PiggyBankCreated(address indexed user, uint256 createdAt);
     event Deposited(
         address indexed user,
@@ -86,31 +83,11 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         address indexed token,
         uint256 amount
     );
-    event Paused(address indexed by);
-    event Unpaused(address indexed by);
 
-    IPermit2 public immutable permit2;
+    // Permit2 canonical address (same on all chains)
+    IPermit2 public constant permit2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
-    modifier notPaused() {
-        require(!paused, "Contract is paused");
-        _;
-    }
-
-    constructor(address permit2Address) Ownable(msg.sender) {
-        require(permit2Address != address(0), "Invalid Permit2 address");
-        permit2 = IPermit2(permit2Address);
-    }
-
-    /// @notice Emergency pause the contract
-    function pause() external onlyOwner {
-        paused = true;
-        emit Paused(msg.sender);
-    }
-
-    /// @notice Unpause the contract
-    function unpause() external onlyOwner {
-        paused = false;
-        emit Unpaused(msg.sender);
+    constructor() Ownable(msg.sender) {
     }
 
     /// @notice Query the unlock timestamp of a user's piggy bank
@@ -132,7 +109,7 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         uint256 amount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
-    ) external nonReentrant notPaused {
+    ) external nonReentrant {
         address token = permit.permitted.token;
         require(amount > 0, "Deposit amount must be greater than 0");
         require(token != address(0), "Invalid token address");
@@ -186,7 +163,7 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     }
 
     /// @notice Withdraw all tokens (can only withdraw after the lock period)
-    function withdraw() external nonReentrant notPaused {
+    function withdraw() external nonReentrant {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
         require(
@@ -242,7 +219,7 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
     /// @notice Remove a problematic token from user's piggy bank (emergency function)
     /// @param token The token address to remove
     /// @dev This function allows users to remove tokens that are causing withdrawal issues
-    function removeToken(address token) external nonReentrant notPaused {
+    function removeToken(address token) external nonReentrant {
         PiggyBank storage bank = piggyBanks[msg.sender];
         require(bank.exists, "Please create a piggy bank first");
 

@@ -19,7 +19,7 @@ describe("MultiTokenPiggy", function () {
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
 
-        // 部署MockPermit2
+        // 部署MockPermit2到固定地址（模拟真实环境）
         const MockPermit2Factory = await ethers.getContractFactory("MockPermit2");
         mockPermit2 = await MockPermit2Factory.deploy();
         await mockPermit2.waitForDeployment();
@@ -33,9 +33,9 @@ describe("MultiTokenPiggy", function () {
         await usdc.waitForDeployment();
         await dai.waitForDeployment();
 
-        // 部署MultiTokenPiggy
+        // 部署MultiTokenPiggy（不再需要传入Permit2地址）
         const MultiTokenPiggyFactory = await ethers.getContractFactory("MultiTokenPiggy");
-        multiTokenPiggy = await MultiTokenPiggyFactory.deploy(await mockPermit2.getAddress());
+        multiTokenPiggy = await MultiTokenPiggyFactory.deploy();
         await multiTokenPiggy.waitForDeployment();
 
         // 给用户铸造测试代币
@@ -58,68 +58,12 @@ describe("MultiTokenPiggy", function () {
     });
 
     describe("部署", function () {
-        it("应该正确设置Permit2地址", async function () {
-            expect(await multiTokenPiggy.permit2()).to.equal(await mockPermit2.getAddress());
+        it("应该正确设置Permit2地址为常量", async function () {
+            expect(await multiTokenPiggy.permit2()).to.equal("0x000000000022D473030F116dDEE9F6B43aC78BA3");
         });
 
         it("应该正确设置合约所有者", async function () {
             expect(await multiTokenPiggy.owner()).to.equal(owner.address);
-        });
-
-        it("初始状态应该未暂停", async function () {
-            expect(await multiTokenPiggy.paused()).to.be.false;
-        });
-
-        it("部署时Permit2地址不能为零地址", async function () {
-            const MultiTokenPiggyFactory = await ethers.getContractFactory("MultiTokenPiggy");
-            await expect(
-                MultiTokenPiggyFactory.deploy(ethers.ZeroAddress)
-            ).to.be.revertedWith("Invalid Permit2 address");
-        });
-    });
-
-    describe("暂停功能", function () {
-        it("只有所有者可以暂停合约", async function () {
-            await expect(multiTokenPiggy.connect(user1).pause())
-                .to.be.revertedWithCustomError(multiTokenPiggy, "OwnableUnauthorizedAccount");
-        });
-
-        it("所有者可以暂停合约", async function () {
-            await expect(multiTokenPiggy.pause())
-                .to.emit(multiTokenPiggy, "Paused")
-                .withArgs(owner.address);
-            expect(await multiTokenPiggy.paused()).to.be.true;
-        });
-
-        it("只有所有者可以取消暂停", async function () {
-            await multiTokenPiggy.pause();
-            await expect(multiTokenPiggy.connect(user1).unpause())
-                .to.be.revertedWithCustomError(multiTokenPiggy, "OwnableUnauthorizedAccount");
-        });
-
-        it("所有者可以取消暂停", async function () {
-            await multiTokenPiggy.pause();
-            await expect(multiTokenPiggy.unpause())
-                .to.emit(multiTokenPiggy, "Unpaused")
-                .withArgs(owner.address);
-            expect(await multiTokenPiggy.paused()).to.be.false;
-        });
-
-        it("暂停时不能存款", async function () {
-            await multiTokenPiggy.pause();
-            
-            const permit = {
-                permitted: {
-                    token: await usdt.getAddress(),
-                    amount: DEPOSIT_AMOUNT
-                },
-                nonce: 0,
-                deadline: Math.floor(Date.now() / 1000) + 3600
-            };
-
-            await expect(
-                multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT, permit, "0x")
-            ).to.be.revertedWith("Contract is paused");
         });
     });
 

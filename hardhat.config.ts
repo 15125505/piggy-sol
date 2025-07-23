@@ -58,10 +58,6 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: process.env.ETHERSCAN_API_KEY, // Etherscan API Key
     },
-    // 覆盖率配置（可选）
-    solcover: {
-        skipFiles: ['test/', 'mock/']  // 跳过测试文件
-    }
 };
 
 export default config;
