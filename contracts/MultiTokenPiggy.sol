@@ -91,11 +91,31 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
 
     /// @notice Query the unlock timestamp of a user's piggy bank
     /// @param user The user's address
-    /// @return The unlock timestamp (in seconds)
-    function getUnlockTimestamp(address user) external view returns (uint256) {
+    /// @return unlockTimestamp The unlock timestamp (in seconds)
+    /// @return tokens Array of token addresses
+    /// @return balances Corresponding array of balances
+    function getUserInfo(
+        address user
+    )
+        external
+        view
+        returns (
+            uint256 unlockTimestamp,
+            address[] memory tokens,
+            uint256[] memory balances
+        )
+    {
         PiggyBank storage bank = piggyBanks[user];
         require(bank.exists, "Piggy bank does not exist");
-        return bank.createdAt + bank.lockPeriod;
+
+        unlockTimestamp = bank.createdAt + bank.lockPeriod;
+
+        tokens = userTokens[user];
+        balances = new uint256[](tokens.length);
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            balances[i] = bank.balances[tokens[i]];
+        }
     }
 
     /// @notice Deposit ERC20 tokens (first deposit automatically creates a piggy bank, uses Permit2 to transfer tokens)
@@ -239,25 +259,5 @@ contract MultiTokenPiggy is Ownable, ReentrancyGuard {
         }
 
         emit TokenRemoved(msg.sender, token, amount);
-    }
-
-    /// @notice Get the balance information of all tokens for a user
-    /// @param user User address
-    /// @return tokens Array of token addresses
-    /// @return balances Corresponding array of balances
-    function getBalances(
-        address user
-    )
-        external
-        view
-        returns (address[] memory tokens, uint256[] memory balances)
-    {
-        tokens = userTokens[user];
-        balances = new uint256[](tokens.length);
-
-        PiggyBank storage bank = piggyBanks[user];
-        for (uint256 i = 0; i < tokens.length; i++) {
-            balances[i] = bank.balances[tokens[i]];
-        }
     }
 }

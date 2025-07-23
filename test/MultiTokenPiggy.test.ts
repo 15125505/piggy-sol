@@ -183,7 +183,7 @@ describe("MultiTokenPiggy", function () {
 
             await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT, permitUSDC, "0x");
 
-            const [tokens, balances] = await multiTokenPiggy.getBalances(user1.address);
+            const [, tokens, balances] = await multiTokenPiggy.getUserInfo(user1.address);
             expect(tokens.length).to.equal(2);
             expect(balances[0]).to.equal(DEPOSIT_AMOUNT);
             expect(balances[1]).to.equal(DEPOSIT_AMOUNT);
@@ -269,38 +269,14 @@ describe("MultiTokenPiggy", function () {
             expect(balanceAfter - balanceBefore).to.equal(DEPOSIT_AMOUNT);
 
             // 检查余额被清零
-            const [tokens, balances] = await multiTokenPiggy.getBalances(user1.address);
+            const [, tokens, balances] = await multiTokenPiggy.getUserInfo(user1.address);
             expect(balances[0]).to.equal(0);
             expect(balances[1]).to.equal(0);
         });
     });
 
     describe("查询功能", function () {
-        it("可以查询解锁时间戳", async function () {
-            const permit = {
-                permitted: {
-                    token: await usdt.getAddress(),
-                    amount: DEPOSIT_AMOUNT
-                },
-                nonce: 0,
-                deadline: Math.floor(Date.now() / 1000) + 3600
-            };
-
-            const tx = await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT, permit, "0x");
-            const receipt = await tx.wait();
-            const block = await ethers.provider.getBlock(receipt!.blockNumber);
-
-            const unlockTimestamp = await multiTokenPiggy.getUnlockTimestamp(user1.address);
-            expect(unlockTimestamp).to.equal(block!.timestamp + LOCK_PERIOD);
-        });
-
-        it("没有存钱罐时查询解锁时间戳应该失败", async function () {
-            await expect(
-                multiTokenPiggy.getUnlockTimestamp(user1.address)
-            ).to.be.revertedWith("Piggy bank does not exist");
-        });
-
-        it("可以查询所有代币余额", async function () {
+        it("可以查询解锁时间戳和所有代币余额", async function () {
             const permitUSDT = {
                 permitted: {
                     token: await usdt.getAddress(),
@@ -320,9 +296,13 @@ describe("MultiTokenPiggy", function () {
             };
 
             await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT, permitUSDT, "0x");
-            await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT * 2n, permitUSDC, "0x");
+            const tx = await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, DEPOSIT_AMOUNT * 2n, permitUSDC, "0x");
+            const receipt = await tx.wait();
+            const block = await ethers.provider.getBlock(receipt!.blockNumber);
 
-            const [tokens, balances] = await multiTokenPiggy.getBalances(user1.address);
+            const [unlockTimestamp, tokens, balances] = await multiTokenPiggy.getUserInfo(user1.address);
+
+            expect(unlockTimestamp).to.be.closeTo(block!.timestamp + LOCK_PERIOD, 2);
             expect(tokens.length).to.equal(2);
             expect(tokens[0]).to.equal(await usdt.getAddress());
             expect(tokens[1]).to.equal(await usdc.getAddress());
@@ -330,8 +310,29 @@ describe("MultiTokenPiggy", function () {
             expect(balances[1]).to.equal(DEPOSIT_AMOUNT * 2n);
         });
 
-        it("没有代币时查询应该返回空数组", async function () {
-            const [tokens, balances] = await multiTokenPiggy.getBalances(user1.address);
+        it("没有存钱罐时查询用户信息应该失败", async function () {
+            await expect(
+                multiTokenPiggy.getUserInfo(user1.address)
+            ).to.be.revertedWith("Piggy bank does not exist");
+        });
+
+        it("没有代币时查询用户信息应该返回空数组", async function () {
+            // 确保没有存钱罐或没有代币时返回空数组
+            // 首次查询会因为没有存钱罐而失败，所以我们先创建一个空的存钱罐
+            // 这一步是为了让 `getUserInfo` 不会因为 `bank.exists` 而 revert
+            const permit = {
+                permitted: {
+                    token: await usdt.getAddress(), // 使用一个占位符token
+                    amount: 0 // 存入0金额，但会创建piggy bank
+                },
+                nonce: 0,
+                deadline: Math.floor(Date.now() / 1000) + 3600
+            };
+            // 存入0金额，只为创建piggy bank，不实际存入代币
+            await multiTokenPiggy.connect(user1).deposit(LOCK_PERIOD, 1, permit, "0x"); // 存入1 wei，然后移除，确保balances为空
+            await multiTokenPiggy.connect(user1).removeToken(await usdt.getAddress());
+
+            const [, tokens, balances] = await multiTokenPiggy.getUserInfo(user1.address);
             expect(tokens.length).to.equal(0);
             expect(balances.length).to.equal(0);
         });
@@ -369,7 +370,7 @@ describe("MultiTokenPiggy", function () {
             ).to.emit(multiTokenPiggy, "TokenRemoved")
             .withArgs(user1.address, await usdt.getAddress(), DEPOSIT_AMOUNT);
 
-            const [tokens, balances] = await multiTokenPiggy.getBalances(user1.address);
+            const [, tokens, balances] = await multiTokenPiggy.getUserInfo(user1.address);
             expect(tokens.length).to.equal(0);
             expect(balances.length).to.equal(0);
         });
@@ -409,7 +410,7 @@ describe("MultiTokenPiggy", function () {
                 multiTokenPiggy.connect(user1).deposit(newLockPeriod, DEPOSIT_AMOUNT, permit2, "0x")
             ).to.emit(multiTokenPiggy, "PiggyBankCreated");
 
-            const unlockTimestamp = await multiTokenPiggy.getUnlockTimestamp(user1.address);
+            const [unlockTimestamp, ,] = await multiTokenPiggy.getUserInfo(user1.address);
             const currentBlock = await ethers.provider.getBlock("latest");
             expect(unlockTimestamp).to.be.closeTo(currentBlock!.timestamp + newLockPeriod, 2);
         });
