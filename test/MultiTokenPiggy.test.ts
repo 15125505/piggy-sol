@@ -15,14 +15,27 @@ describe("MultiTokenPiggy", function () {
 
     const LOCK_PERIOD = 86400; // 1天
     const DEPOSIT_AMOUNT = ethers.parseEther("100");
+    const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 
     beforeEach(async function () {
         [owner, user1, user2] = await ethers.getSigners();
 
-        // 部署MockPermit2到固定地址（模拟真实环境）
+        // 部署MockPermit2到临时地址
         const MockPermit2Factory = await ethers.getContractFactory("MockPermit2");
-        mockPermit2 = await MockPermit2Factory.deploy();
-        await mockPermit2.waitForDeployment();
+        const tempMockPermit2 = await MockPermit2Factory.deploy();
+        await tempMockPermit2.waitForDeployment();
+
+        // 获取MockPermit2的字节码
+        const mockPermit2Code = await ethers.provider.getCode(await tempMockPermit2.getAddress());
+
+        // 将MockPermit2的字节码部署到标准Permit2地址
+        await ethers.provider.send("hardhat_setCode", [
+            PERMIT2_ADDRESS,
+            mockPermit2Code,
+        ]);
+
+        // 创建指向标准地址的MockPermit2实例
+        mockPermit2 = MockPermit2Factory.attach(PERMIT2_ADDRESS) as MockPermit2;
 
         // 部署测试代币
         const TestTokenFactory = await ethers.getContractFactory("TestToken");
@@ -33,7 +46,7 @@ describe("MultiTokenPiggy", function () {
         await usdc.waitForDeployment();
         await dai.waitForDeployment();
 
-        // 部署MultiTokenPiggy（不再需要传入Permit2地址）
+        // 部署MultiTokenPiggy
         const MultiTokenPiggyFactory = await ethers.getContractFactory("MultiTokenPiggy");
         multiTokenPiggy = await MultiTokenPiggyFactory.deploy();
         await multiTokenPiggy.waitForDeployment();
@@ -47,19 +60,19 @@ describe("MultiTokenPiggy", function () {
         await usdc.mint(user2.address, ethers.parseEther("10000"));
         await dai.mint(user2.address, ethers.parseEther("10000"));
 
-        // 批准代币给MockPermit2
-        await usdt.connect(user1).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
-        await usdc.connect(user1).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
-        await dai.connect(user1).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
+        // 批准代币给Permit2（现在使用标准地址）
+        await usdt.connect(user1).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
+        await usdc.connect(user1).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
+        await dai.connect(user1).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
 
-        await usdt.connect(user2).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
-        await usdc.connect(user2).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
-        await dai.connect(user2).approve(await mockPermit2.getAddress(), ethers.MaxUint256);
+        await usdt.connect(user2).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
+        await usdc.connect(user2).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
+        await dai.connect(user2).approve(PERMIT2_ADDRESS, ethers.MaxUint256);
     });
 
     describe("部署", function () {
         it("应该正确设置Permit2地址为常量", async function () {
-            expect(await multiTokenPiggy.permit2()).to.equal("0x000000000022D473030F116dDEE9F6B43aC78BA3");
+            expect(await multiTokenPiggy.permit2()).to.equal(PERMIT2_ADDRESS);
         });
 
         it("应该正确设置合约所有者", async function () {
