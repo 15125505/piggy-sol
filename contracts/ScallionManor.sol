@@ -175,7 +175,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev 设置继承人 - 严格费用匹配
+     * @dev 设置继承人
      */
     function setInheritors(
         address[] calldata newInheritors,
@@ -193,7 +193,6 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
-                // 🔧 修改：严格等额支付
                 require(permit.permitted.amount == forceChangeFee, "Must pay exact force change fee");
 
                 permit2.permitTransferFrom(
@@ -231,13 +230,16 @@ contract ScallionManor is Ownable, ReentrancyGuard {
      * @dev 提取自己的WBTC
      */
     function withdrawWBTC() external nonReentrant {
-        address withdrawer = getWithdrawer(msg.sender);
-        require(withdrawer != address(0), "No valid withdrawer found");
-        require(withdrawer == msg.sender, "You are not authorized to withdraw");
-
         Manor storage manor = manors[msg.sender];
         require(manor.wbtcBalance > 0, "No WBTC to withdraw");
         require(block.timestamp >= manor.createdAt + manor.lockPeriod, "Still locked");
+
+        // 先更新活跃时间，确保getWithdrawer能正确识别当前用户
+        manor.lastActiveTime = block.timestamp;
+        
+        address withdrawer = getWithdrawer(msg.sender);
+        require(withdrawer != address(0), "No valid withdrawer found");
+        require(withdrawer == msg.sender, "You are not authorized to withdraw");
 
         uint256 amount = manor.wbtcBalance;
         manor.wbtcBalance = 0;
@@ -245,18 +247,22 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         require(wbtcToken.transfer(msg.sender, amount), "Transfer failed");
 
         emit WBTCWithdrawn(msg.sender, amount, msg.sender);
+        emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
     /**
      * @dev 继承他人的WBTC
      */
     function inheritWBTC(address manorOwner) external nonReentrant {
-        address withdrawer = getWithdrawer(manorOwner);
-        require(withdrawer == msg.sender, "You are not authorized to inherit");
-
         Manor storage manor = manors[manorOwner];
         require(manor.wbtcBalance > 0, "No WBTC to inherit");
         require(block.timestamp >= manor.createdAt + manor.lockPeriod, "Still locked");
+
+        // 先更新继承人的活跃时间，确保getWithdrawer能正确识别继承人
+        manors[msg.sender].lastActiveTime = block.timestamp;
+        
+        address withdrawer = getWithdrawer(manorOwner);
+        require(withdrawer == msg.sender, "You are not authorized to inherit");
 
         uint256 amount = manor.wbtcBalance;
         manor.wbtcBalance = 0;
@@ -264,6 +270,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         require(wbtcToken.transfer(msg.sender, amount), "Transfer failed");
 
         emit WBTCWithdrawn(manorOwner, amount, msg.sender);
+        emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
     /**
@@ -276,6 +283,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
+        // 先更新维护者的活跃时间，确保getWithdrawer能正确识别维护者
+        manors[msg.sender].lastActiveTime = block.timestamp;
+        
         address withdrawer = getWithdrawer(manorOwner);
         require(withdrawer == msg.sender, "You are not authorized to maintain");
 
