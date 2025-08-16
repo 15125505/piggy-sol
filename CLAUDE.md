@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Piggy365 is a smart contract project implementing a multi-user ERC20 piggy bank system. Users can create time-locked savings accounts using ERC20 tokens, with deposits made via Permit2 signatures and withdrawals only allowed after the lock period expires.
+Piggy365 is a smart contract project implementing multiple savings systems:
+
+1. **Multi-user ERC20 piggy bank system** - Users can create time-locked savings accounts using multiple ERC20 tokens, with deposits made via Permit2 signatures and withdrawals only allowed after the lock period expires.
+
+2. **Scallion Manor inheritance system** - An advanced WBTC savings contract with inheritance features, where users purchase manor access and can set up to 10 inheritors with activity-based withdrawal rights.
 
 ## Development Commands
 
@@ -38,12 +42,23 @@ Piggy365 is a smart contract project implementing a multi-user ERC20 piggy bank 
 - Single WLD token support
 - Basic time-locked savings functionality
 
+**ScallionManor.sol** - Advanced inheritance-based WBTC savings contract
+- Paid manor access system with non-transferable qualifications
+- WBTC-only deposits with time-lock functionality
+- Inheritance system supporting up to 10 inheritors
+- Activity-based withdrawal rights with 1-year inactivity threshold
+- Inheritor management with 30-day cooldown or paid force changes
+- Fallback address system for unclaimed funds
+- Maintenance rights for active inheritors
+
 **Key Features:**
 - Time-locked savings with user-defined periods
 - Automatic piggy bank creation on first deposit
-- Multi-token support with unified lock periods
+- Multi-token support with unified lock periods (MultiTokenPiggy)
+- Inheritance-based access control with activity monitoring (ScallionManor)
 - Robust error handling for failed token transfers
 - Reset functionality when all balances are zero after lock expiry
+- Permit2 integration for gasless transactions
 
 ### Contract Integration Patterns
 
@@ -54,8 +69,10 @@ Piggy365 is a smart contract project implementing a multi-user ERC20 piggy bank 
 
 **State Management:**
 - Struct-based piggy banks with mappings for token balances
-- User token enumeration via `userTokens` mapping
+- User token enumeration via `userTokens` mapping (MultiTokenPiggy)
+- Manor-based inheritance system with activity tracking (ScallionManor)
 - Event-driven architecture for deposit/withdrawal tracking
+- Inheritor management with access validation
 
 ## Network Configuration
 
