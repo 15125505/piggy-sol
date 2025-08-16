@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * ███████║╚██████╗██║  ██║███████╗███████╗██║╚██████╔╝██║ ╚████║    ██║ ╚═╝ ██║██║  ██║██║ ╚████║╚██████╔╝██║  ██║
  * ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝
  *
- * @title ScallionManor - Optimized Inheritance-based WBTC Savings Contract
+ * @title ScallionManor -  Inheritance-based WBTC Savings Contract
  * @dev Implements an inheritance-based time-locked savings system with WBTC and WLD fee payments
  *
  */
@@ -41,12 +41,12 @@ interface IPermit2 {
     ) external;
 }
 
-/// @title Scallion Manor - Optimized Inheritance-based WBTC Savings Contract
+/// @title Scallion Manor -  Inheritance-based WBTC Savings Contract
 /// @author zhoufeng
 /// @notice Users pay WLD to access manor, lock WBTC with inheritance features
-contract ScallionManorOptimized is Ownable, ReentrancyGuard {
+contract ScallionManor is Ownable, ReentrancyGuard {
 
-    /// @dev Optimized Manor struct for each user
+    /// @dev  Manor struct for each user
     struct Manor {
         uint256 wbtcBalance;         // WBTC balance in the manor
         uint256 createdAt;           // When the manor was first funded (0 = no access)
