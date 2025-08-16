@@ -41,52 +41,32 @@ interface IPermit2 {
     ) external;
 }
 
-/// @title Scallion Manor -  Inheritance-based WBTC Savings Contract
-/// @author zhoufeng
-/// @notice Users pay WLD to access manor, lock WBTC with inheritance features
 contract ScallionManor is Ownable, ReentrancyGuard {
 
-    /// @dev  Manor struct for each user
     struct Manor {
-        uint256 wbtcBalance;         // WBTC balance in the manor
-        uint256 createdAt;           // When the manor was first funded (0 = no access)
-        uint256 lockPeriod;          // Lock period in seconds
-        uint256 lastActiveTime;      // Last activity timestamp
-        uint256 lastInheritorChange; // Last time inheritors were modified
-        address[] inheritors;        // List of inheritors (max 10)
+        uint256 wbtcBalance;         // WBTC余额
+        uint256 createdAt;           // 创建时间（0=无权限，1=有权限未存入，>1=存入时间）
+        uint256 lockPeriod;          // 锁定期（秒）
+        uint256 lastActiveTime;      // 最后活跃时间
+        uint256 lastInheritorChange; // 最后继承人修改时间
+        address[] inheritors;        // 继承人列表（最多10人）
     }
 
-    /// @dev Mapping of user address to their manor
     mapping(address => Manor) public manors;
 
-    /// @dev Manor access price in WLD tokens
-    uint256 public manorAccessPrice;
+    uint256 public manorAccessPrice;     // 庄园访问价格（WLD）
+    uint256 public forceChangeFee;       // 强制修改费用（WLD）
 
-    /// @dev Force change fee for inheritors in WLD tokens
-    uint256 public forceChangeFee;
+    uint256 public constant INACTIVE_THRESHOLD = 365 days;           // 不活跃阈值
+    uint256 public constant INHERITOR_CHANGE_COOLDOWN = 30 days;     // 继承人修改冷却期
+    uint256 public constant MAX_INHERITORS = 10;                     // 最大继承人数
 
-    /// @dev Inactive threshold (default 1 year)
-    uint256 public constant INACTIVE_THRESHOLD = 365 days;
-
-    /// @dev Inheritor change cooldown (30 days)
-    uint256 public constant INHERITOR_CHANGE_COOLDOWN = 30 days;
-
-    /// @dev Maximum number of inheritors
-    uint256 public constant MAX_INHERITORS = 10;
-
-    /// @dev Fallback address for unclaimed funds
-    address public fallbackAddress;
-
-    /// @dev WBTC token contract
-    IERC20 public immutable wbtcToken;
-
-    /// @dev WLD token contract for fee payments
-    IERC20 public immutable wldToken;
-
-    /// @dev Permit2 canonical address (same on all chains)
+    address public fallbackAddress;      // 兜底地址
+    IERC20 public immutable wbtcToken;   // WBTC代币合约
+    IERC20 public immutable wldToken;    // WLD代币合约
     IPermit2 public constant permit2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
-    // Events
+    // 事件
     event ManorAccessPurchased(address indexed user, uint256 wldAmount);
     event WBTCDeposited(address indexed user, uint256 amount, uint256 newBalance, uint256 lockPeriod);
     event WBTCWithdrawn(address indexed user, uint256 amount, address indexed withdrawer);
@@ -114,25 +94,26 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         fallbackAddress = _fallbackAddress;
     }
 
-    /// @notice Check if user has manor access
-    /// @param user User address to check
-    /// @return True if user has access
+    /**
+     * @dev 检查用户是否拥有庄园权限
+     */
     function hasManorAccess(address user) public view returns (bool) {
         return manors[user].createdAt > 0;
     }
 
-    /// @notice Purchase manor access with WLD tokens
-    /// @param permit Permit2 permission struct for WLD (amount must be >= manorAccessPrice)
-    /// @param signature Permit2 signature
+    /**
+     * @dev 购买庄园权限
+     * @param permit Permit2许可证（金额必须 == manorAccessPrice）
+     * @param signature Permit2签名
+     */
     function purchaseManorAccess(
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
         require(!hasManorAccess(msg.sender), "Already has manor access");
         require(permit.permitted.token == address(wldToken), "Must pay with WLD");
-        require(permit.permitted.amount >= manorAccessPrice, "Insufficient WLD payment");
+        require(permit.permitted.amount == manorAccessPrice, "Must pay exact manor access price");
 
-        // Transfer WLD via Permit2
         permit2.permitTransferFrom(
             permit,
             IPermit2.SignatureTransferDetails({
@@ -143,32 +124,32 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             signature
         );
 
-        // Initialize manor with access granted
-        manors[msg.sender].createdAt = 1; // Non-zero indicates access
+        // 初始化庄园权限并设置活跃时间
+        manors[msg.sender].createdAt = 1;
         manors[msg.sender].lastActiveTime = block.timestamp;
 
         emit ManorAccessPurchased(msg.sender, permit.permitted.amount);
         emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
-    /// @notice Deposit WBTC using Permit2
-    /// @param lockPeriod Lock period in seconds (only for first deposit)
-    /// @param amount Amount of WBTC to deposit
-    /// @param permit Permit2 permission struct for WBTC
-    /// @param signature Permit2 signature
+    /**
+     * @dev 存入WBTC
+     * @param lockPeriod 锁定期（秒，仅首次存入时有效）
+     * @param permit Permit2许可证（必须是WBTC代币）
+     * @param signature Permit2签名
+     */
     function depositWBTC(
         uint256 lockPeriod,
-        uint256 amount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
         require(hasManorAccess(msg.sender), "Must purchase manor access first");
-        require(amount > 0, "Deposit amount must be greater than 0");
         require(permit.permitted.token == address(wbtcToken), "Must deposit WBTC");
+        require(permit.permitted.amount > 0, "Deposit amount must be greater than 0");
 
         Manor storage manor = manors[msg.sender];
 
-        // If no balance and not locked, allow setting new lock period
+        // 如果没有余额且（首次或锁定期已过期），可以设置新锁定期
         if (manor.wbtcBalance == 0 &&
             (manor.createdAt <= 1 || block.timestamp >= manor.createdAt + manor.lockPeriod)) {
             require(lockPeriod > 0, "Lock period must be greater than 0");
@@ -176,29 +157,26 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             manor.lockPeriod = lockPeriod;
         }
 
-        // Transfer WBTC via Permit2
         permit2.permitTransferFrom(
             permit,
             IPermit2.SignatureTransferDetails({
                 to: address(this),
-                requestedAmount: amount
+                requestedAmount: permit.permitted.amount
             }),
             msg.sender,
             signature
         );
 
-        manor.wbtcBalance += amount;
+        manor.wbtcBalance += permit.permitted.amount;
         manor.lastActiveTime = block.timestamp;
 
-        emit WBTCDeposited(msg.sender, amount, manor.wbtcBalance, manor.lockPeriod);
+        emit WBTCDeposited(msg.sender, permit.permitted.amount, manor.wbtcBalance, manor.lockPeriod);
         emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
-    /// @notice Set inheritors (max 10)
-    /// @param newInheritors Array of inheritor addresses
-    /// @param forceChange Whether to pay WLD fee for immediate change
-    /// @param permit Permit2 permission struct for WLD (only if forceChange is true, amount must be >= forceChangeFee)
-    /// @param signature Permit2 signature (only if forceChange is true)
+    /**
+     * @dev 设置继承人 - 严格费用匹配
+     */
     function setInheritors(
         address[] calldata newInheritors,
         bool forceChange,
@@ -210,14 +188,14 @@ contract ScallionManor is Ownable, ReentrancyGuard {
 
         Manor storage manor = manors[msg.sender];
 
-        // Check cooldown period
+        // 检查冷却期
         if (manor.lastInheritorChange > 0 &&
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
-                require(permit.permitted.amount >= forceChangeFee, "Insufficient WLD for force change");
+                // 🔧 修改：严格等额支付
+                require(permit.permitted.amount == forceChangeFee, "Must pay exact force change fee");
 
-                // Transfer WLD fee via Permit2
                 permit2.permitTransferFrom(
                     permit,
                     IPermit2.SignatureTransferDetails({
@@ -232,10 +210,10 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             }
         }
 
-        // Validate that all inheritors have manor access
+        // 验证所有继承人都有庄园权限
         for (uint256 i = 0; i < newInheritors.length; i++) {
             require(hasManorAccess(newInheritors[i]), "Inheritor must have manor access");
-            // Check for duplicates
+            // 检查重复项
             for (uint256 j = i + 1; j < newInheritors.length; j++) {
                 require(newInheritors[i] != newInheritors[j], "Duplicate inheritors not allowed");
             }
@@ -249,7 +227,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
-    /// @notice Withdraw WBTC (only available after lock period)
+    /**
+     * @dev 提取自己的WBTC
+     */
     function withdrawWBTC() external nonReentrant {
         address withdrawer = getWithdrawer(msg.sender);
         require(withdrawer != address(0), "No valid withdrawer found");
@@ -267,8 +247,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         emit WBTCWithdrawn(msg.sender, amount, msg.sender);
     }
 
-    /// @notice Inherit WBTC from another user's manor
-    /// @param manorOwner The manor owner whose WBTC to inherit
+    /**
+     * @dev 继承他人的WBTC
+     */
     function inheritWBTC(address manorOwner) external nonReentrant {
         address withdrawer = getWithdrawer(manorOwner);
         require(withdrawer == msg.sender, "You are not authorized to inherit");
@@ -285,12 +266,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         emit WBTCWithdrawn(manorOwner, amount, msg.sender);
     }
 
-    /// @notice Maintain inheritors list (only for current withdrawer)
-    /// @param manorOwner The manor owner whose inheritors to maintain
-    /// @param newInheritors New inheritors list (can only modify after current position)
-    /// @param forceChange Whether to pay WLD fee for immediate change
-    /// @param permit Permit2 permission struct for WLD (only if forceChange is true, amount must be >= forceChangeFee)
-    /// @param signature Permit2 signature (only if forceChange is true)
+    /**
+     * @dev 维护继承人列表 - 严格费用匹配
+     */
     function maintainInheritors(
         address manorOwner,
         address[] calldata newInheritors,
@@ -303,14 +281,14 @@ contract ScallionManor is Ownable, ReentrancyGuard {
 
         Manor storage manor = manors[manorOwner];
 
-        // Check cooldown period
+        // 检查冷却期
         if (manor.lastInheritorChange > 0 &&
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
-                require(permit.permitted.amount >= forceChangeFee, "Insufficient WLD for force change");
+                // 🔧 修改：严格等额支付
+                require(permit.permitted.amount == forceChangeFee, "Must pay exact force change fee");
 
-                // Transfer WLD fee via Permit2
                 permit2.permitTransferFrom(
                     permit,
                     IPermit2.SignatureTransferDetails({
@@ -325,7 +303,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             }
         }
 
-        // Find current withdrawer position in inheritors list
+        // 找到当前维护者在继承人列表中的位置
         uint256 withdrawerIndex = type(uint256).max;
         for (uint256 i = 0; i < manor.inheritors.length; i++) {
             if (manor.inheritors[i] == msg.sender) {
@@ -334,10 +312,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             }
         }
 
-        // Validate new inheritors list
         require(newInheritors.length <= MAX_INHERITORS, "Too many inheritors");
 
-        // Ensure inheritors before withdrawer position remain unchanged
+        // 确保维护者位置之前的继承人保持不变
         if (withdrawerIndex != type(uint256).max) {
             require(newInheritors.length > withdrawerIndex, "Must include all previous inheritors");
             for (uint256 i = 0; i <= withdrawerIndex; i++) {
@@ -345,20 +322,23 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             }
         }
 
-        // Validate all new inheritors have manor access
+        // 验证所有新继承人都有庄园权限
         for (uint256 i = 0; i < newInheritors.length; i++) {
             require(hasManorAccess(newInheritors[i]), "Inheritor must have manor access");
         }
 
         manor.inheritors = newInheritors;
         manor.lastInheritorChange = block.timestamp;
+        manor.lastActiveTime = block.timestamp; // 🔧 修复：添加活跃时间更新
 
         emit InheritorsUpdated(manorOwner, newInheritors);
+        emit ActivityUpdated(manorOwner, block.timestamp); // 🔧 修复：添加活跃事件
     }
 
-    /// @notice Get the current withdrawer for a manor
-    /// @param manorOwner The manor owner
-    /// @return The address authorized to withdraw, or address(0) if none
+    /**
+     * @dev 获取当前有权提取的地址
+     * 由于继承人必须拥有庄园权限，因此必然有活跃时间，无需特殊处理
+     */
     function getWithdrawer(address manorOwner) public view returns (address) {
         Manor storage manor = manors[manorOwner];
 
@@ -366,12 +346,13 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             return address(0);
         }
 
-        // Check if manor owner is active
+        // 检查庄园主人是否活跃
         if (block.timestamp <= manor.lastActiveTime + INACTIVE_THRESHOLD) {
             return manorOwner;
         }
 
-        // Check inheritors in order
+        // 检查继承人是否活跃
+        // ✅ 继承人必须有庄园权限，因此必然有lastActiveTime，无需特殊处理
         for (uint256 i = 0; i < manor.inheritors.length; i++) {
             address inheritor = manor.inheritors[i];
             if (manors[inheritor].lastActiveTime + INACTIVE_THRESHOLD >= block.timestamp) {
@@ -379,24 +360,20 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             }
         }
 
-        // Return fallback address if no one is active
+        // 所有人都不活跃，返回兜底地址
         return fallbackAddress;
     }
 
-    /// @notice Check if a user is active
-    /// @param user User address to check
-    /// @return True if user is active
+    /**
+     * @dev 检查用户是否活跃
+     */
     function isUserActive(address user) external view returns (bool) {
         return block.timestamp <= manors[user].lastActiveTime + INACTIVE_THRESHOLD;
     }
 
-    /// @notice Get manor information
-    /// @param user User address
-    /// @return hasAccess Whether user has manor access
-    /// @return wbtcBalance WBTC balance
-    /// @return unlockTime When funds can be withdrawn
-    /// @return lastActiveTime Last activity time
-    /// @return inheritors List of inheritors
+    /**
+     * @dev 获取庄园信息
+     */
     function getManorInfo(address user) external view returns (
         bool hasAccess,
         uint256 wbtcBalance,
@@ -414,43 +391,49 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         );
     }
 
-    // Owner functions
+    // === Owner管理函数 ===
 
-    /// @notice Update manor access price
-    /// @param newPrice New price in WLD tokens
+    /**
+     * @dev 更新庄园价格（移除上限限制，因为使用严格匹配）
+     */
     function setManorAccessPrice(uint256 newPrice) external onlyOwner {
         manorAccessPrice = newPrice;
         emit ManorAccessPriceUpdated(newPrice);
     }
 
-    /// @notice Update force change fee
-    /// @param newFee New fee in WLD tokens
+    /**
+     * @dev 更新强制修改费用（移除上限限制，因为使用严格匹配）
+     */
     function setForceChangeFee(uint256 newFee) external onlyOwner {
         forceChangeFee = newFee;
         emit ForceChangeFeeUpdated(newFee);
     }
 
-    /// @notice Update fallback address
-    /// @param newFallbackAddress New fallback address
+    /**
+     * @dev 更新兜底地址
+     */
     function setFallbackAddress(address newFallbackAddress) external onlyOwner {
         require(newFallbackAddress != address(0), "Invalid fallback address");
         fallbackAddress = newFallbackAddress;
         emit FallbackAddressUpdated(newFallbackAddress);
     }
 
-    /// @notice Withdraw collected WLD fees
+    /**
+     * @dev 提取收集的WLD费用
+     */
     function withdrawWLD() external onlyOwner {
         uint256 balance = wldToken.balanceOf(address(this));
         require(balance > 0, "No WLD to withdraw");
         require(wldToken.transfer(owner(), balance), "Transfer failed");
     }
 
-    /// @notice Emergency function to recover stuck tokens
-    /// @param token Token address to recover
-    /// @param amount Amount to recover
+    /**
+     * @dev 紧急恢复被误转的代币
+     */
     function emergencyRecoverToken(address token, uint256 amount) external onlyOwner {
         require(token != address(wbtcToken), "Cannot recover WBTC");
         require(token != address(wldToken), "Cannot recover WLD");
+        require(amount > 0, "Amount must be greater than 0");
         IERC20(token).transfer(owner(), amount);
     }
 }
