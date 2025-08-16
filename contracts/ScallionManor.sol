@@ -75,6 +75,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     event ManorAccessPriceUpdated(uint256 newPrice);
     event ForceChangeFeeUpdated(uint256 newFee);
     event FallbackAddressUpdated(address newFallbackAddress);
+    event DeveloperTipped(address indexed tipper, uint256 wldAmount, string message);
 
     constructor(
         address _wbtcToken,
@@ -397,6 +398,50 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             manor.lastActiveTime,
             manor.inheritors
         );
+    }
+
+    /**
+     * @dev 刷新用户活跃时间
+     */
+    function refreshActivity() external nonReentrant {
+        require(hasManorAccess(msg.sender), "Must have manor access");
+
+        manors[msg.sender].lastActiveTime = block.timestamp;
+
+        emit ActivityUpdated(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev 打赏开发者
+     * @param permit Permit2许可证（必须是WLD代币）
+     * @param signature Permit2签名
+     * @param message 打赏消息（支持中文）
+     */
+    function tipDeveloper(
+        IPermit2.PermitTransferFrom calldata permit,
+        bytes calldata signature,
+        string calldata message
+    ) external nonReentrant {
+        require(permit.permitted.token == address(wldToken), "Must tip with WLD");
+        require(permit.permitted.amount > 0, "Tip amount must be greater than 0");
+
+        permit2.permitTransferFrom(
+            permit,
+            IPermit2.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: permit.permitted.amount
+            }),
+            msg.sender,
+            signature
+        );
+
+        // 如果用户有庄园权限，更新活跃时间
+        if (hasManorAccess(msg.sender)) {
+            manors[msg.sender].lastActiveTime = block.timestamp;
+            emit ActivityUpdated(msg.sender, block.timestamp);
+        }
+
+        emit DeveloperTipped(msg.sender, permit.permitted.amount, message);
     }
 
     // === Owner管理函数 ===
