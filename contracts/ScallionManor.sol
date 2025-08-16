@@ -122,24 +122,22 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     }
 
     /// @notice Purchase manor access with WLD tokens
-    /// @param wldAmount Amount of WLD to pay (must be >= manorAccessPrice)
-    /// @param permit Permit2 permission struct for WLD
+    /// @param permit Permit2 permission struct for WLD (amount must be >= manorAccessPrice)
     /// @param signature Permit2 signature
     function purchaseManorAccess(
-        uint256 wldAmount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
-        require(wldAmount >= manorAccessPrice, "Insufficient WLD payment");
         require(!hasManorAccess(msg.sender), "Already has manor access");
         require(permit.permitted.token == address(wldToken), "Must pay with WLD");
+        require(permit.permitted.amount >= manorAccessPrice, "Insufficient WLD payment");
 
         // Transfer WLD via Permit2
         permit2.permitTransferFrom(
             permit,
             IPermit2.SignatureTransferDetails({
                 to: address(this),
-                requestedAmount: wldAmount
+                requestedAmount: permit.permitted.amount
             }),
             msg.sender,
             signature
@@ -149,7 +147,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         manors[msg.sender].createdAt = 1; // Non-zero indicates access
         manors[msg.sender].lastActiveTime = block.timestamp;
 
-        emit ManorAccessPurchased(msg.sender, wldAmount);
+        emit ManorAccessPurchased(msg.sender, permit.permitted.amount);
         emit ActivityUpdated(msg.sender, block.timestamp);
     }
 
@@ -199,13 +197,11 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     /// @notice Set inheritors (max 10)
     /// @param newInheritors Array of inheritor addresses
     /// @param forceChange Whether to pay WLD fee for immediate change
-    /// @param wldAmount Amount of WLD to pay if force change (ignored if forceChange is false)
-    /// @param permit Permit2 permission struct for WLD (only if forceChange is true)
+    /// @param permit Permit2 permission struct for WLD (only if forceChange is true, amount must be >= forceChangeFee)
     /// @param signature Permit2 signature (only if forceChange is true)
     function setInheritors(
         address[] calldata newInheritors,
         bool forceChange,
-        uint256 wldAmount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
@@ -218,15 +214,15 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         if (manor.lastInheritorChange > 0 &&
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
-                require(wldAmount >= forceChangeFee, "Insufficient WLD for force change");
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
+                require(permit.permitted.amount >= forceChangeFee, "Insufficient WLD for force change");
 
                 // Transfer WLD fee via Permit2
                 permit2.permitTransferFrom(
                     permit,
                     IPermit2.SignatureTransferDetails({
                         to: address(this),
-                        requestedAmount: wldAmount
+                        requestedAmount: permit.permitted.amount
                     }),
                     msg.sender,
                     signature
@@ -293,14 +289,12 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     /// @param manorOwner The manor owner whose inheritors to maintain
     /// @param newInheritors New inheritors list (can only modify after current position)
     /// @param forceChange Whether to pay WLD fee for immediate change
-    /// @param wldAmount Amount of WLD to pay if force change
-    /// @param permit Permit2 permission struct for WLD (only if forceChange is true)
+    /// @param permit Permit2 permission struct for WLD (only if forceChange is true, amount must be >= forceChangeFee)
     /// @param signature Permit2 signature (only if forceChange is true)
     function maintainInheritors(
         address manorOwner,
         address[] calldata newInheritors,
         bool forceChange,
-        uint256 wldAmount,
         IPermit2.PermitTransferFrom calldata permit,
         bytes calldata signature
     ) external nonReentrant {
@@ -313,15 +307,15 @@ contract ScallionManor is Ownable, ReentrancyGuard {
         if (manor.lastInheritorChange > 0 &&
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
-                require(wldAmount >= forceChangeFee, "Insufficient WLD for force change");
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
+                require(permit.permitted.amount >= forceChangeFee, "Insufficient WLD for force change");
 
                 // Transfer WLD fee via Permit2
                 permit2.permitTransferFrom(
                     permit,
                     IPermit2.SignatureTransferDetails({
                         to: address(this),
-                        requestedAmount: wldAmount
+                        requestedAmount: permit.permitted.amount
                     }),
                     msg.sender,
                     signature
