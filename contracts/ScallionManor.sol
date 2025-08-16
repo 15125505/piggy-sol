@@ -236,7 +236,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
 
         // 先更新活跃时间，确保getWithdrawer能正确识别当前用户
         manor.lastActiveTime = block.timestamp;
-        
+
         address withdrawer = getWithdrawer(msg.sender);
         require(withdrawer != address(0), "No valid withdrawer found");
         require(withdrawer == msg.sender, "You are not authorized to withdraw");
@@ -260,7 +260,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
 
         // 先更新继承人的活跃时间，确保getWithdrawer能正确识别继承人
         manors[msg.sender].lastActiveTime = block.timestamp;
-        
+
         address withdrawer = getWithdrawer(manorOwner);
         require(withdrawer == msg.sender, "You are not authorized to inherit");
 
@@ -285,7 +285,7 @@ contract ScallionManor is Ownable, ReentrancyGuard {
     ) external nonReentrant {
         // 先更新维护者的活跃时间，确保getWithdrawer能正确识别维护者
         manors[msg.sender].lastActiveTime = block.timestamp;
-        
+
         address withdrawer = getWithdrawer(manorOwner);
         require(withdrawer == msg.sender, "You are not authorized to maintain");
 
@@ -296,7 +296,6 @@ contract ScallionManor is Ownable, ReentrancyGuard {
             block.timestamp < manor.lastInheritorChange + INHERITOR_CHANGE_COOLDOWN) {
             if (forceChange) {
                 require(permit.permitted.token == address(wldToken), "Must pay with WLD");
-                // 🔧 修改：严格等额支付
                 require(permit.permitted.amount == forceChangeFee, "Must pay exact force change fee");
 
                 permit2.permitTransferFrom(
@@ -339,10 +338,9 @@ contract ScallionManor is Ownable, ReentrancyGuard {
 
         manor.inheritors = newInheritors;
         manor.lastInheritorChange = block.timestamp;
-        manor.lastActiveTime = block.timestamp; // 🔧 修复：添加活跃时间更新
 
         emit InheritorsUpdated(manorOwner, newInheritors);
-        emit ActivityUpdated(manorOwner, block.timestamp); // 🔧 修复：添加活跃事件
+        emit ActivityUpdated(msg.sender, block.timestamp); // 维护者活跃时间更新
     }
 
     /**
