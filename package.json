@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "main": "index.js",
     "scripts": {
-        "test": "hardhat test",
+        "test": "npm run test:scallion",
+        "test:scallion": "hardhat test test/ScallionManor.test.ts",
+        "test:all": "hardhat test",
         "build": "hardhat compile",
         "deploy0": "hardhat run scripts/deploy.ts --network hardhat",
         "deploy1": "hardhat run scripts/deploy.ts --network sepolia",
