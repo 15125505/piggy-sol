@@ -1,10 +1,10 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
-import { 
-    ScallionManorTest, 
-    MockERC20, 
-    MockPermit2 
+import {
+    ScallionManorTest,
+    MockERC20,
+    MockPermit2
 } from "../typechain-types";
 
 describe("ScallionManor", function () {
@@ -86,7 +86,7 @@ describe("ScallionManor", function () {
     describe("庄园权限购买", function () {
         it("应该允许用户购买庄园权限", async function () {
             const permit = createPermit(await wldToken.getAddress(), MANOR_ACCESS_PRICE);
-            
+
             await expect(
                 scallionManor.connect(user1).purchaseManorAccess(permit, "0x")
             ).to.emit(scallionManor, "ManorAccessPurchased")
@@ -98,9 +98,9 @@ describe("ScallionManor", function () {
 
         it("应该拒绝重复购买庄园权限", async function () {
             const permit = createPermit(await wldToken.getAddress(), MANOR_ACCESS_PRICE);
-            
+
             await scallionManor.connect(user1).purchaseManorAccess(permit, "0x");
-            
+
             const permit2 = createPermit(await wldToken.getAddress(), MANOR_ACCESS_PRICE, 1);
             await expect(
                 scallionManor.connect(user1).purchaseManorAccess(permit2, "0x")
@@ -109,7 +109,7 @@ describe("ScallionManor", function () {
 
         it("应该拒绝错误的支付金额", async function () {
             const wrongPermit = createPermit(await wldToken.getAddress(), ethers.parseEther("50"));
-            
+
             await expect(
                 scallionManor.connect(user1).purchaseManorAccess(wrongPermit, "0x")
             ).to.be.revertedWith("Must pay exact manor access price");
@@ -125,7 +125,7 @@ describe("ScallionManor", function () {
 
         it("应该允许存入WBTC", async function () {
             const permit = createPermit(await wbtcToken.getAddress(), DEPOSIT_AMOUNT);
-            
+
             await expect(
                 scallionManor.connect(user1).depositWBTC(LOCK_PERIOD, permit, "0x")
             ).to.emit(scallionManor, "WBTCDeposited")
@@ -144,7 +144,7 @@ describe("ScallionManor", function () {
             await ethers.provider.send("evm_mine");
 
             const balanceBefore = await wbtcToken.balanceOf(user1.address);
-            
+
             await expect(
                 scallionManor.connect(user1).withdrawWBTC()
             ).to.emit(scallionManor, "WBTCWithdrawn")
@@ -172,7 +172,7 @@ describe("ScallionManor", function () {
 
         it("应该允许用户刷新活跃时间", async function () {
             const timestampBefore = (await scallionManor.getManorInfo(user1.address)).lastActiveTime;
-            
+
             // 等待1秒
             await ethers.provider.send("evm_increaseTime", [1]);
             await ethers.provider.send("evm_mine");
@@ -230,7 +230,7 @@ describe("ScallionManor", function () {
         });
 
         it("应该拒绝零金额打赏", async function () {
-            const permit = createPermit(await wldToken.getAddress(), 0);
+            const permit = createPermit(await wldToken.getAddress(), 0n);
 
             await expect(
                 scallionManor.connect(user1).tipDeveloper(permit, "0x", "测试")
@@ -243,7 +243,7 @@ describe("ScallionManor", function () {
             // 购买庄园权限并存入WBTC
             const accessPermit = createPermit(await wldToken.getAddress(), MANOR_ACCESS_PRICE);
             await scallionManor.connect(user1).purchaseManorAccess(accessPermit, "0x");
-            
+
             const depositPermit = createPermit(await wbtcToken.getAddress(), DEPOSIT_AMOUNT);
             await scallionManor.connect(user1).depositWBTC(LOCK_PERIOD, depositPermit, "0x");
 
@@ -267,9 +267,9 @@ describe("ScallionManor", function () {
             await scallionManor.connect(user1).tipDeveloper(permit, "0x", "测试打赏");
 
             const ownerBalanceBefore = await wldToken.balanceOf(owner.address);
-            
+
             await scallionManor.connect(owner).withdrawWLD();
-            
+
             const ownerBalanceAfter = await wldToken.balanceOf(owner.address);
             expect(ownerBalanceAfter - ownerBalanceBefore).to.equal(tipAmount);
         });
@@ -308,7 +308,7 @@ describe("ScallionManor", function () {
 
             for (let i = 0; i < messages.length; i++) {
                 const permit = createPermit(await wldToken.getAddress(), ethers.parseEther("1"), i);
-                
+
                 await expect(
                     scallionManor.connect(user1).tipDeveloper(permit, "0x", messages[i])
                 ).to.emit(scallionManor, "DeveloperTipped")
